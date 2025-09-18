@@ -1,59 +1,46 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import bcrypt from "bcrypt";
+import { prisma } from "../prismaClient.js";
 
-const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+//It here to create a new user
+export const createUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: { name, email, passwordHash },
+      select: { id: true, name: true, email: true },
+    });
+    res.status(201).json(user);
+  } catch (err) {
+    next(err);
+  }
+};
 
-// User Registration
-export const registerUser = async (req, res) =>{
-    const{username, password} = req.body;
-    try{
-        const exsistingUser = await prisma.user.findUnique({where:{username}});
-        if(existingUser){
-            return res.status(400).json({message: 'Username already exists'});
-            
-        }
-        const hashedPassword = await bcrypt.hash(password,10);
-        const newUser  = await prisma.user.create({
-            data:{username,password:hashedPassword}
-        });
-        res.status(201).json({message: 'User registered successfully', userId: newUser.id});
-    }catch(error){
-        res.status(500).json({message: 'Server error', error: error.message});
-    }
-}
-// User Login
-export const LoginUser = async (req, res)=>{
-    const {username,password} = req.body;
-    try{
-        const user = await prisma.user.findUnique({where:{username}});
-        if(!user){
-            return res.status(400).json({message: 'Invalid username or password'});
-        } 
-        const isPasswordVliad = await bcrypt.compare(password,user.password);
-        if(!isPasswordVliad){
-            return res.status(400).json({message: 'Invalid username or password'});
-        }
-        const token = jwt.sign({userId: user.id, username:user.username}, JWT_SECRET, {expiresIn: '1h'});
-        res.status(200).json({message: 'Login successful', token});
-    }catch(error){
-        res.status(500).json({message: 'Server error', error: error.message});
-    }
-}
+//This is to get all the users
 
-// Get User Profile
-export const getUserProfile = async (req, res) => {
-    const userId = req.user.userId;
-    try {
-        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true } });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-
-        }
-        res.status(200).json({ message: 'User profile retrieved successfully', user });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-}
+export const getUsers = async (req, res, next) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { id: "asc" },
+    });
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+};
+//This to get single user by its id
+export const getUserById = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true },
+    });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+};
 
